@@ -12,7 +12,7 @@ module AwsStackBuilder
     lambda_handler_key = LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
     source = <<~SOURCE
       # see handler AwsApiGatewayEventHandler.call(event: event, context: context) in required file
-      require 'lambda/aws_lambda_handler'
+      require 'modulator/lambda/aws_lambda_handler'
       Dir.chdir('/opt/ruby/lib/' + ENV['app_dir'])
     SOURCE
 
