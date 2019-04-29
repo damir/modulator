@@ -1,0 +1,60 @@
+{
+  "body": "{\"x\": 123}",
+  "isBase64Encoded": false,
+
+  "resource": "/calc/{proxy+}",
+  "path": "/calc/1/add/2",
+  "httpMethod": "POST",
+
+  "multiValueHeaders": {
+    "x-custom": [
+      "abc"
+    ]
+  },
+  "queryStringParameters": {
+    "aa": "11",
+    "bb": "22"
+  },
+  "multiValueQueryStringParameters": {
+    "aa": [
+      "11"
+    ],
+    "bb": [
+      "22"
+    ]
+  },
+  "pathParameters": {
+    "id": "1",
+    "other_id": "2"
+  },
+  "stageVariables": null,
+
+  "headers": {
+    "Host": "1234567890.execute-api.us-east-1.amazonaws.com",
+    "User-Agent": "Custom User Agent String",
+    "X-Forwarded-For": "127.0.0.1, 127.0.0.2",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "resourceId": "123456",
+    "stage": "prod",
+    "requestId": "c6af9ac6-7b61-11e6-9a41-93e8deadbeef",
+    "requestTime": "09/Apr/2015:12:34:56 +0000",
+    "requestTimeEpoch": 1428582896000,
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "accountId": null,
+      "cognitoIdentityId": null,
+      "caller": null,
+      "accessKey": null,
+      "sourceIp": "127.0.0.1",
+      "cognitoAuthenticationType": null,
+      "cognitoAuthenticationProvider": null,
+      "userArn": null,
+      "userAgent": "Custom User Agent String",
+      "user": null
+    }
+  }
+}

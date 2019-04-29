@@ -1,0 +1,3 @@
+---
+BUNDLE_PATH: "./.modulator/gems"
+BUNDLE_CLEAN: "true"
