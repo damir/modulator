@@ -1,7 +1,7 @@
 require 'json'
 
-require 'lambda/aws_lambda_handler'
-require 'lambda/aws_stack_builder'
+require 'modulator/lambda/aws_lambda_handler'
+require 'modulator/lambda/aws_stack_builder'
 require 'utils'
 
 module Modulator

@@ -1,5 +1,5 @@
 require 'rack/test'
-require_relative '../../lib/gateway/gateway'
+require 'modulator/gateway/gateway'
 
 include Rack::Test::Methods
 

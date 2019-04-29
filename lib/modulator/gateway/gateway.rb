@@ -12,7 +12,7 @@ class Gateway < Roda
 
   my_dir = Pathname.new(__FILE__).dirname
   my_dir.glob('routes/*.rb').each{|file| require_relative file}
-  DUMMY_AWS_EVENT = Utils.load_json my_dir.parent.join('../spec/lambda/aws/event.json')
+  DUMMY_AWS_EVENT = Utils.load_json my_dir.parent.join('../../spec/lambda/aws/event.json')
 
   before do
     @time = Time.now
