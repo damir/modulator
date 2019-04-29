@@ -7,7 +7,7 @@ GIT
 PATH
   remote: .
   specs:
-    modulator (0.1.0)
+    modulator (0.1.1)
       aws-sdk-cloudformation
       aws-sdk-s3
       puma
