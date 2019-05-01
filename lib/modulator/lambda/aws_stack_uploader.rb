@@ -12,6 +12,7 @@ module AwsStackBuilder
     lambda_handler_key = LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
     source = <<~SOURCE
       require 'modulator/lambda/aws_lambda_handler'
+      Dir.chdir('/opt/ruby/lib')
     SOURCE
 
     existing_handler = S3Client.get_object(
