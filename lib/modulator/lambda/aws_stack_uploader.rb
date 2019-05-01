@@ -11,9 +11,7 @@ module AwsStackBuilder
     bucket_name = Humidifier.ref("S3Bucket").reference
     lambda_handler_key = LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
     source = <<~SOURCE
-      # see handler AwsApiGatewayEventHandler.call(event: event, context: context) in required file
       require 'modulator/lambda/aws_lambda_handler'
-      Dir.chdir('/opt/ruby/lib/' + ENV['app_dir'])
     SOURCE
 
     existing_handler = S3Client.get_object(
@@ -47,13 +45,13 @@ module AwsStackBuilder
     end
 
     # calculate Gemfile checksum
-    checksum_path = app_path.join('.modulator/gemfile_checksum')
+    checksum_path = app_path.join(hidden_dir, 'gemfile_checksum')
     old_checksum  = (checksum_path.read rescue nil)
     new_checksum  = Digest::MD5.hexdigest(File.read(app_path.join('Gemfile.lock')))
 
     zip_file_name = app_dir + '_gems.zip'
-    gems_path = app_path.join('.modulator/gems')
-    gems_zip_path = gems_path.parent.join(zip_file_name)
+    gems_path = app_path.join(hidden_dir, 'gems')
+    gems_zip_path = app_path.join(hidden_dir, zip_file_name)
 
     if old_checksum != new_checksum
       puts '- uploading gems layer'
@@ -62,7 +60,7 @@ module AwsStackBuilder
       # bundle gems
       Bundler.with_clean_env do
         Dir.chdir(app_path) do
-          `bundle install --path=./.modulator/gems --clean`
+          `bundle install --path=./#{hidden_dir}/gems --clean`
         end
       end
       ZipFileGenerator.new(gems_path, gems_zip_path).write
@@ -90,19 +88,25 @@ module AwsStackBuilder
   end
 
   def upload_app_layer
-    wd = Pathname.getwd
     zip_file_name = app_dir + '.zip'
-    app_zip_path  = wd.join(zip_file_name)
+    app_zip_path  = app_path.join(hidden_dir, zip_file_name)
+
+    # copy app code to ruby/lib in use outside temp dir
+    temp_dir_name = '.modulator_temp'
+    ruby_lib_dirs = 'ruby/lib'
+    temp_path     = app_path.parent.join(temp_dir_name)
+    temp_path.join(ruby_lib_dirs).mkpath
+    FileUtils.copy_entry app_path, temp_path.join(ruby_lib_dirs)
 
     # calculate checksum for app folder
-    checksum_path = app_path.join('.modulator/app_checksum')
+    checksum_path = app_path.join(hidden_dir, 'app_checksum')
     old_checksum  = (checksum_path.read rescue nil)
     new_checksum  = checksum(app_path)
 
     if old_checksum != new_checksum
       puts '- uploading app layer'
       checksum_path.write(new_checksum)
-      ZipFileGenerator.new(app_path, app_zip_path).write
+      ZipFileGenerator.new(temp_path, app_zip_path).write
       # upload zipped file
       app_layer = S3Client.put_object(
         bucket: bucket,
@@ -115,6 +119,9 @@ module AwsStackBuilder
       puts '- using existing app layer'
       app_layer = S3Client.get_object(bucket: bucket, key: zip_file_name)
     end
+
+    # delete temp dir
+    FileUtils.remove_dir(temp_path)
 
     add_layer(
       name: app_name,

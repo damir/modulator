@@ -9,7 +9,8 @@ module AwsStackBuilder
   LAMBDA_HANDLER_FILE_NAME = 'lambda-handler'
 
   class << self
-    attr_accessor :app_name, :stack, :api_gateway_deployment, :gateway_id, :app_path, :app_dir, :bucket, :stack_opts
+    attr_accessor :app_name, :stack, :api_gateway_deployment, :gateway_id
+    attr_accessor :app_path, :app_dir, :hidden_dir, :bucket, :stack_opts
   end
 
   def init(app_name:, bucket:, **stack_opts)
@@ -18,6 +19,7 @@ module AwsStackBuilder
     @bucket     = bucket
     @app_path   = Pathname.getwd
     @app_dir    = app_path.basename.to_s
+    @hidden_dir = '.modulator'
     @stack_opts = stack_opts
     @stack      = Humidifier::Stack.new(name: @app_name, aws_template_format_version: '2010-09-09')
 
@@ -35,7 +37,7 @@ module AwsStackBuilder
   def upload_files
     upload_lambda_handler
     puts 'Generating layers'
-    app_path.join('.modulator').mkpath
+    app_path.join(hidden_dir).mkpath
     upload_gems_layer
     upload_app_layer
   end
