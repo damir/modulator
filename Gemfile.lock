@@ -7,7 +7,7 @@ GIT
 PATH
   remote: .
   specs:
-    modulator (0.2.0)
+    modulator (0.2.1)
       aws-sdk-cloudformation
       aws-sdk-s3
       puma
@@ -19,11 +19,11 @@ GEM
   remote: https://rubygems.org/
   specs:
     aws-eventstream (1.0.3)
-    aws-partitions (1.155.0)
+    aws-partitions (1.156.0)
     aws-sdk-cloudformation (1.19.0)
       aws-sdk-core (~> 3, >= 3.48.2)
       aws-sigv4 (~> 1.1)
-    aws-sdk-core (3.48.6)
+    aws-sdk-core (3.49.0)
       aws-eventstream (~> 1.0, >= 1.0.2)
       aws-partitions (~> 1.0)
       aws-sigv4 (~> 1.1)
