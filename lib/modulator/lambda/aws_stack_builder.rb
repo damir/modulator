@@ -24,14 +24,18 @@ module AwsStackBuilder
     @stack      = Humidifier::Stack.new(name: @app_name, aws_template_format_version: '2010-09-09')
 
     # api stage
-    @stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
+    stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
+
+    # app environment -  test, development, production ...
+    app_envs = stack_opts[:app_envs] || ['development']
+    stack.add_parameter('AppEnvironment', description: 'Application environment', type: 'String', allowed_values: app_envs)
 
     add_api_gateway
     add_api_gateway_deployment
     add_lambda_iam_role
     upload_files
-    extend_stack_instance(@stack)
-    @stack
+    extend_stack_instance(stack)
+    stack
   end
 
   def upload_files
@@ -91,7 +95,11 @@ module AwsStackBuilder
         variables: env
           .reduce({}){|env_as_string, (k, v)| env_as_string.update(k.to_s => v.to_s)}
           .merge(lambda_config)
-          .merge('GEM_PATH' => GEM_PATH, 'app_dir' => app_dir)
+          .merge(
+            'GEM_PATH' => GEM_PATH,
+            'app_dir' => app_dir,
+            'app_env' => Humidifier.ref('AppEnvironment')
+          )
       },
       role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
       timeout: settings[:timeout] || stack_opts[:timeout] || 15,

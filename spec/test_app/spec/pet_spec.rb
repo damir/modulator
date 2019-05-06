@@ -1,6 +1,6 @@
 require_relative '../pet'
 
-describe Pet do
+describe 'Test app Pet module' do
   it 'creates pet' do
     pet = {id: 1, name: 'Bubi'}
     Pet.create pet: pet

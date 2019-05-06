@@ -1,13 +1,13 @@
 GIT
   remote: https://github.com/damir/humidifier
-  revision: 81a75bbd4b47aadaaed5f967fb3527a2175dec82
+  revision: 739ae95b1be23bf984ea41917c4b2b49dbe669b1
   specs:
     humidifier (2.15.0)
 
 PATH
   remote: .
   specs:
-    modulator (0.2.2)
+    modulator (0.2.3)
       aws-sdk-cloudformation
       aws-sdk-s3
       puma
@@ -19,16 +19,16 @@ GEM
   remote: https://rubygems.org/
   specs:
     aws-eventstream (1.0.3)
-    aws-partitions (1.156.0)
+    aws-partitions (1.158.0)
     aws-sdk-cloudformation (1.19.0)
       aws-sdk-core (~> 3, >= 3.48.2)
       aws-sigv4 (~> 1.1)
-    aws-sdk-core (3.49.0)
+    aws-sdk-core (3.50.0)
       aws-eventstream (~> 1.0, >= 1.0.2)
       aws-partitions (~> 1.0)
       aws-sigv4 (~> 1.1)
       jmespath (~> 1.0)
-    aws-sdk-kms (1.17.0)
+    aws-sdk-kms (1.18.0)
       aws-sdk-core (~> 3, >= 3.48.2)
       aws-sigv4 (~> 1.1)
     aws-sdk-s3 (1.36.1)

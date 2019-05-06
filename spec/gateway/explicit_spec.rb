@@ -1,4 +1,4 @@
-describe 'Pet' do
+describe 'Gateway with explicit definitions' do
   before(:each) do
     Gateway.opts[:app_dir] = 'spec'
   end

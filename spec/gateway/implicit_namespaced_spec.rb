@@ -1,6 +1,6 @@
 require_relative '../test_app/calculator/algebra'
 
-describe Calculator do
+describe 'Gateway with implicit definition for namespaced module' do
   it 'GET to Calculator::Algebra.sum with namespaced path' do
     Gateway.opts[:app_dir] = 'spec/test_app'
     Modulator.add_lambda(Calculator::Algebra)

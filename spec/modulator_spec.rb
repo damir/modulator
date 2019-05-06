@@ -1,7 +1,7 @@
 require $spec_path.join 'test_app/pet.rb'
 require $spec_path.join 'test_app/calculator/algebra'
 
-describe Modulator do
+describe 'Modulator::LAMBDAS integrity' do
   $empty_defs = {env: {}, wrapper: {}, settings: {}}
 
   it 'registers lambda explicitly' do

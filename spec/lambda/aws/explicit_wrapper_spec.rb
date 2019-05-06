@@ -1,4 +1,4 @@
-describe Modulator do
+describe 'Handler with wrapped explicit definitions' do
   $payload = {id: 1, name: 'Bubi'}
 
   it 'early return when wrapper returns status' do

@@ -1,6 +1,6 @@
 require $spec_path.join 'test_app/pet.rb'
 
-describe Modulator do
+describe 'Wrappers for implicit definitions' do
   $payload = {id: 1, name: 'Bubi'}
 
   it 'executes pet-create with common wrapper for the module' do

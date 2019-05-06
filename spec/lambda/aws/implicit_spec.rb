@@ -1,6 +1,6 @@
 require $spec_path.join 'test_app/pet.rb'
 
-describe Modulator do
+describe 'Handler with implicit definitions' do
   it 'registers lambda implicitly' do
     Modulator::LAMBDAS.clear
     Modulator.add_lambda(Pet)

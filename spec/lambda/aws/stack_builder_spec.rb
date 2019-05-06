@@ -1,20 +1,26 @@
-describe AwsStackBuilder do
+describe 'CloudFormation template from AwsStackBuilder' do
   it 'builds ApiGatewayRestApi' do
     Dir.chdir('spec/test_app')
 
     # provide your own bucket via env
     $s3_bucket = ENV['S3BUCKET'] || 'modulator-lambdas'
 
+    # stack settings
+    $timeout = 20
+    $memory_size = 256
+    $app_envs = %w(development test production)
+
     # init stack
     $stack = AwsStackBuilder.init(
       app_name: 'DemoApp',
       bucket: $s3_bucket,
-      timeout: 20,
-      memory_size: 256
+      timeout: $timeout,
+      memory_size: $memory_size,
+      app_envs: $app_envs
     )
 
     # add some stack parameters
-    $stack.add_parameter('Env', description: 'The deploy environment', type: 'String')
+    # $stack.add_parameter('Env', description: 'The deploy environment', type: 'String')
 
     # generated template
     template = JSON.parse($stack.to_cf(:json))
@@ -30,8 +36,8 @@ describe AwsStackBuilder do
     expect(template['Parameters']).to eq(
       {"ApiGatewayStageName"=>
         {"Type"=>"String", "Default"=>"v1", "Description"=>"Gateway deployment stage"},
-       "Env"=>
-        {"Type"=>"String", "Description"=>"The deploy environment"}},
+       "AppEnvironment"=>
+        {"AllowedValues"=>$app_envs, "Description"=>"Application environment", "Type"=>"String"}},
     )
 
     # verify Outputs
@@ -107,10 +113,11 @@ describe AwsStackBuilder do
               "module_method"=>"sum",
               "module_path"=>"test_app/calculator/algebra",
               "GEM_PATH"=>"/opt/ruby/2.5.0",
-              "app_dir"=>"test_app"}},
-          "MemorySize"=>256,
+              "app_dir"=>"test_app",
+              "app_env"=>{"Ref"=>"AppEnvironment"}}},
+          "MemorySize"=>$memory_size,
           "Role"=>{"Fn::GetAtt"=>["LambdaRole", "Arn"]},
-          "Timeout"=>20,
+          "Timeout"=>$timeout,
           "Runtime"=>"ruby2.5",
           "Code"=>
            {"S3Bucket"=>$s3_bucket, "S3Key"=>"lambda-handler.rb.zip"},
