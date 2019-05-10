@@ -3,7 +3,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
     Dir.chdir('spec/test_app')
 
     # provide your own bucket via env
-    $s3_bucket = ENV['S3BUCKET'] || 'modulator-lambdas'
+    $s3_bucket = ENV['MODULATOR_S3_BUCKET'] || 'modulator-lambdas'
 
     # stack settings
     $timeout = 20
@@ -13,17 +13,18 @@ describe 'CloudFormation template from AwsStackBuilder' do
     # init stack
     $stack = AwsStackBuilder.init(
       app_name: 'DemoApp',
-      bucket: $s3_bucket,
+      s3_bucket: $s3_bucket,
       timeout: $timeout,
       memory_size: $memory_size,
-      app_envs: $app_envs
+      app_envs: $app_envs,
+      lambda_policies: [{name: :dynamo_db, opts: {prefixes: [:app_name, 'prefix'], prefix_separator: '-sep-'}}]
     )
 
     # add some stack parameters
     # $stack.add_parameter('Env', description: 'The deploy environment', type: 'String')
 
     # generated template
-    template = JSON.parse($stack.to_cf(:json))
+    pp template = JSON.parse($stack.to_cf(:json))
 
     # verify structure
     expect(template.keys).to eq(%w[AWSTemplateFormatVersion Outputs Parameters Resources])
@@ -36,8 +37,8 @@ describe 'CloudFormation template from AwsStackBuilder' do
     expect(template['Parameters']).to eq(
       {"ApiGatewayStageName"=>
         {"Type"=>"String", "Default"=>"v1", "Description"=>"Gateway deployment stage"},
-       "AppEnvironment"=>
-        {"AllowedValues"=>$app_envs, "Description"=>"Application environment", "Type"=>"String"}},
+       "AppEnvironment" =>
+        {"AllowedValues"=>$app_envs , "ConstraintDescription"=>"Must be one of #{$app_envs.join(', ')}", "Description"=>"Application environment", "Type"=>"String"}},
     )
 
     # verify Outputs
@@ -76,18 +77,38 @@ describe 'CloudFormation template from AwsStackBuilder' do
                "Effect"=>"Allow",
                "Principal"=>{"Service"=>["lambda.amazonaws.com"]}}]},
           "Policies"=>
-           [{"PolicyDocument"=>
+           [
+            # dynamo tables with prefix
+            {"PolicyDocument"=>
+              {"Version"=>"2012-10-17",
+               "Statement"=>
+                [{"Sid"=>"AllowAllActionsOnPrefixedTable",
+                  "Effect"=>"Allow",
+                  "Action"=>["dynamodb:*"],
+                  "Resource"=>
+                  {"Fn::Sub"=>"arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/demo-sep-app-sep-prefix-sep-*"}},
+                 {"Sid"=>"AdditionalPrivileges",
+                  "Effect"=>"Allow",
+                  "Action"=>["dynamodb:ListTables", "dynamodb:DescribeTable"],
+                  "Resource"=>"*"}]},
+             "PolicyName"=>"dynamo-db-access"},
+
+            # cloudwatch
+            {"PolicyDocument"=>
               {"Version"=>"2012-10-17",
                "Statement"=>
                 [{"Action"=>["logs:CreateLogStream", "logs:PutLogEvents"],
                   "Effect"=>"Allow",
+                  "Sid"=>"AllowLogCreation",
                   "Resource"=>
                    {"Fn::Sub"=>
                      "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"}},
                  {"Action"=>["logs:CreateLogGroup"],
                   "Effect"=>"Allow",
+                  "Sid"=>"AllowLogGroupCreation",
                   "Resource"=>"*"}]},
-             "PolicyName"=>"cloud-watch-access"}]}}
+             "PolicyName"=>"cloud-watch-access"},
+             ]}}
     )
   end
 
@@ -206,7 +227,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
     )
 
     app_layer = template.dig('Resources', 'DemoAppLayer')
-    checksum = Pathname.getwd.join(AwsStackBuilder.app_path, '.modulator', 'app_checksum').read
+    checksum = Pathname.getwd.join(AwsStackBuilder.app_path, AwsStackBuilder.hidden_dir, 'app_checksum').read
     app_layer['Properties']['Content']['S3ObjectVersion'] = 'dynamic'
     expect(app_layer).to eq(
       {"Type"=>"AWS::Lambda::LayerVersion",

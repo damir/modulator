@@ -29,10 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rack-test", "~> 1.1"
 
   # stack builder
-  # custom source is not supported by bundler, it is added to gemfile
-  # spec.add_dependency "humidifier", github: 'damir/humidifier'
-  spec.add_dependency "aws-sdk-s3"
-  spec.add_dependency "aws-sdk-cloudformation"
+  spec.add_dependency "humidifier"
   spec.add_dependency "rubyzip"
 
   # local gateway

@@ -7,8 +7,7 @@ module AwsStackBuilder
 
   S3Client = Aws::S3::Client.new
 
-  def upload_lambda_handler
-    bucket_name = Humidifier.ref("S3Bucket").reference
+  def upload_generic_lambda_handler
     lambda_handler_key = LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
     source = <<~SOURCE
       require 'modulator/lambda/aws_lambda_handler'
@@ -16,7 +15,7 @@ module AwsStackBuilder
     SOURCE
 
     existing_handler = S3Client.get_object(
-      bucket: bucket,
+      bucket: s3_bucket,
       key: lambda_handler_key
     ) rescue false # not found
 
@@ -32,7 +31,7 @@ module AwsStackBuilder
         zip.print source
       end
       S3Client.put_object(
-        bucket: bucket,
+        bucket: s3_bucket,
         key: lambda_handler_key,
         body: source_zip_file.tap(&:rewind).read
       )
@@ -68,7 +67,7 @@ module AwsStackBuilder
 
       # upload zipped file
       gem_layer = S3Client.put_object(
-        bucket: bucket,
+        bucket: s3_bucket,
         key: zip_file_name,
         body: gems_zip_path.read
       )
@@ -77,7 +76,7 @@ module AwsStackBuilder
       gems_zip_path.delete
     else
       puts '- using existing gems layer'
-      gem_layer = S3Client.get_object(bucket: bucket, key: zip_file_name)
+      gem_layer = S3Client.get_object(bucket: s3_bucket, key: zip_file_name)
     end
 
     add_layer(
@@ -102,7 +101,7 @@ module AwsStackBuilder
     # calculate checksum for app folder
     checksum_path = app_path.join(hidden_dir, 'app_checksum')
     old_checksum  = (checksum_path.read rescue nil)
-    new_checksum  = checksum(app_path)
+    new_checksum  = Utils.checksum(app_path)
 
     if old_checksum != new_checksum
       puts '- uploading app layer'
@@ -110,7 +109,7 @@ module AwsStackBuilder
       ZipFileGenerator.new(temp_path, app_zip_path).write
       # upload zipped file
       app_layer = S3Client.put_object(
-        bucket: bucket,
+        bucket: s3_bucket,
         key: zip_file_name,
         body: app_zip_path.read
       )
@@ -118,7 +117,7 @@ module AwsStackBuilder
       app_zip_path.delete
     else
       puts '- using existing app layer'
-      app_layer = S3Client.get_object(bucket: bucket, key: zip_file_name)
+      app_layer = S3Client.get_object(bucket: s3_bucket, key: zip_file_name)
     end
 
     # delete temp dir
@@ -139,17 +138,11 @@ module AwsStackBuilder
         layer_name: name,
         description: description,
         content: {
-          s3_bucket: bucket,
+          s3_bucket: s3_bucket,
           s3_key: s3_key,
           s3_object_version: s3_object_version
         }
       )
     )
-  end
-
-  def checksum(dir)
-    files = Dir["#{dir}/**/*"].reject{|f| File.directory?(f)}
-    content = files.map{|f| File.read(f)}.join
-    Digest::MD5.hexdigest(content)
   end
 end

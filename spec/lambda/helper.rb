@@ -1,4 +1,3 @@
-# Utils.load_json($spec_path.join('lambda/aws/event.json'))
 $aws_event = {}
 $aws_context = {}
 

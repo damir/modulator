@@ -56,6 +56,12 @@ module Utils
   def load_json(path)
     JSON.parse(File.read(path))
   end
+
+  def checksum(dir)
+    files = Dir["#{dir}/**/*"].reject{|f| File.directory?(f)}
+    content = files.map{|f| File.read(f)}.join
+    Digest::MD5.hexdigest(content)
+  end
 end
 
 # NOTE: this code is taken from https://github.com/rubyzip/rubyzip examples

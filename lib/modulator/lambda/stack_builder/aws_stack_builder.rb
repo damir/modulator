@@ -1,5 +1,7 @@
+require 'forwardable'
 require 'humidifier'
 require_relative 'aws_stack_uploader'
+require_relative 'aws_lambda_policies'
 
 module AwsStackBuilder
   module_function
@@ -9,74 +11,92 @@ module AwsStackBuilder
   LAMBDA_HANDLER_FILE_NAME = 'lambda-handler'
 
   class << self
-    attr_accessor :app_name, :stack, :api_gateway_deployment, :gateway_id
-    attr_accessor :app_path, :app_dir, :hidden_dir, :bucket, :stack_opts
+    attr_accessor :app_name, :stack, :api_gateway_deployment, :api_gateway_id
+    attr_accessor :app_path, :app_dir, :hidden_dir, :s3_bucket, :stack_opts
+    attr_accessor :lambda_policies
   end
 
-  def init(app_name:, bucket:, **stack_opts)
+  def init(app_name:, s3_bucket:, **stack_opts)
     puts 'Initializing stack'
     @app_name   = app_name.camelize
-    @bucket     = bucket
+    @s3_bucket  = s3_bucket
     @app_path   = Pathname.getwd
     @app_dir    = app_path.basename.to_s
     @hidden_dir = '.modulator'
     @stack_opts = stack_opts
-    @stack      = Humidifier::Stack.new(name: @app_name, aws_template_format_version: '2010-09-09')
+    @lambda_policies = Array(stack_opts[:lambda_policies]) << :cloudwatch
+
+    # create hidden dir for build artifacts
+    app_path.join(hidden_dir).mkpath
+
+    # init stack instance
+    self.stack = Humidifier::Stack.new(name: app_name, aws_template_format_version: '2010-09-09')
 
     # api stage
     stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
 
     # app environment -  test, development, production ...
     app_envs = stack_opts[:app_envs] || ['development']
-    stack.add_parameter('AppEnvironment', description: 'Application environment', type: 'String', allowed_values: app_envs)
+    stack.add_parameter('AppEnvironment', description: 'Application environment', type: 'String', allowed_values: app_envs, constraint_description: "Must be one of #{app_envs.join(', ')}")
 
-    add_api_gateway
-    add_api_gateway_deployment
-    add_lambda_iam_role
-    upload_files
-    extend_stack_instance(stack)
+    # add gateway
+    stack.add_api_gateway
+    stack.add_api_gateway_deployment
+
+    # add role
+    stack.add_lambda_iam_role
+
+    # add policies to role
+    stack.lambda_policies.each do |policy|
+      stack.add_policy(policy) if policy.is_a?(Symbol)
+      stack.add_policy(policy[:name], **policy[:opts]) if policy.is_a?(Hash)
+    end
+
+    # upload layers
+    stack.upload_files
+
+    # return humidifier instance
     stack
   end
 
   def upload_files
-    upload_lambda_handler
+    if stack_opts[:skip_upload]
+      puts 'Skipping upload'
+      return
+    end
+    stack.upload_generic_lambda_handler
     puts 'Generating layers'
-    app_path.join(hidden_dir).mkpath
-    upload_gems_layer
-    upload_app_layer
+    stack.upload_gems_layer
+    stack.upload_app_layer
   end
 
-  # helpers
-  def extend_stack_instance(stack)
-    stack.instance_eval do
-      def add_lambda_endpoint(**opts) # gateway:, mod:, wrapper: {}, env: {}, settings: {}
-        # add lambda
-        lambda = AwsStackBuilder.add_lambda(opts)
-        # add api resources
-        AwsStackBuilder.add_api_gateway_resources(gateway: opts[:gateway], lambda: lambda)
-      end
-    end
+
+  def add_lambda_endpoint(**opts) # gateway:, mod:, wrapper: {}, env: {}, settings: {}
+    # add lambda
+    lambda = stack.add_lambda(opts)
+    # add api resources
+    stack.add_api_gateway_resources(gateway: opts[:gateway], lambda: lambda)
   end
 
   # gateway
   def add_api_gateway
-    @gateway_id = 'ApiGateway'
-    @stack.add(gateway_id, Humidifier::ApiGateway::RestApi.new(name: app_name, description: app_name + ' API'))
+    self.api_gateway_id = 'ApiGateway'
+    stack.add(api_gateway_id, Humidifier::ApiGateway::RestApi.new(name: app_name, description: app_name + ' API'))
   end
 
   # gateway deployment
   def add_api_gateway_deployment
-    @api_gateway_deployment = Humidifier::ApiGateway::Deployment.new(
-      rest_api_id: Humidifier.ref(gateway_id),
+    self.api_gateway_deployment = Humidifier::ApiGateway::Deployment.new(
+      rest_api_id: Humidifier.ref(api_gateway_id),
       stage_name: Humidifier.ref("ApiGatewayStageName")
     )
-    @stack.add('ApiGatewayDeployment', @api_gateway_deployment)
-    @stack.add_output('ApiGatewayInvokeURL',
-        value: Humidifier.fn.sub("https://${#{gateway_id}}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStageName}"),
+    stack.add('ApiGatewayDeployment', api_gateway_deployment)
+    stack.add_output('ApiGatewayInvokeURL',
+        value: Humidifier.fn.sub("https://${#{api_gateway_id}}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStageName}"),
         description: 'API root url',
         export_name: app_name + 'RootUrl'
     )
-    @api_gateway_deployment.depends_on = []
+    api_gateway_deployment.depends_on = []
   end
 
   # lambda function
@@ -106,7 +126,7 @@ module AwsStackBuilder
       memory_size: settings[:memory_size] || stack_opts[:memory_size] || 128,
       runtime: RUBY_VERSION,
       code: {
-        s3_bucket: bucket,
+        s3_bucket: s3_bucket,
         s3_key: LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
       },
       layers: [
@@ -115,7 +135,7 @@ module AwsStackBuilder
       ]
     )
     id = ['Lambda', name_parts, mod[:method].capitalize].join
-    @stack.add(id, lambda_function)
+    stack.add(id, lambda_function)
     add_lambda_invoke_permission(id: id, gateway: gateway)
     id
   end
@@ -126,11 +146,11 @@ module AwsStackBuilder
       fragment = '*' if fragment.start_with?(':')
       matcher << fragment
     end.join('/')
-    @stack.add('LambdaPermission', Humidifier::Lambda::Permission.new(
+    stack.add('LambdaPermission', Humidifier::Lambda::Permission.new(
         action: "lambda:InvokeFunction",
         function_name: Humidifier.fn.get_att([id, 'Arn']),
         principal: "apigateway.amazonaws.com",
-        source_arn: Humidifier.fn.sub("arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${#{gateway_id}}/*/#{gateway[:verb]}/#{arn_path_matcher}")
+        source_arn: Humidifier.fn.sub("arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${#{api_gateway_id}}/*/#{gateway[:verb]}/#{arn_path_matcher}")
       )
     )
   end
@@ -143,8 +163,8 @@ module AwsStackBuilder
 
     # root resource
     root_resource = path.shift
-    @stack.add(root_resource.camelize, Humidifier::ApiGateway::Resource.new(
-        rest_api_id: Humidifier.ref(AwsStackBuilder.gateway_id),
+    stack.add(root_resource.camelize, Humidifier::ApiGateway::Resource.new(
+        rest_api_id: Humidifier.ref(api_gateway_id),
         parent_id: Humidifier.fn.get_att(["ApiGateway", "RootResourceId"]),
         path_part: root_resource
       )
@@ -157,8 +177,8 @@ module AwsStackBuilder
         fragment = fragment[1..-1]
         dynamic_fragment = "{#{fragment}}"
       end
-      @stack.add(parent_resource + fragment.camelize, Humidifier::ApiGateway::Resource.new(
-          rest_api_id: Humidifier.ref(AwsStackBuilder.gateway_id),
+      stack.add(parent_resource + fragment.camelize, Humidifier::ApiGateway::Resource.new(
+          rest_api_id: Humidifier.ref(api_gateway_id),
           parent_id: Humidifier.ref(parent_resource),
           path_part: dynamic_fragment || fragment
         )
@@ -168,7 +188,7 @@ module AwsStackBuilder
 
     # attach lambda to last resource
     id = 'EndpointFor' + (gateway[:path].gsub(':', '').gsub('/', '_')).camelize
-    @stack.add(id, Humidifier::ApiGateway::Method.new(
+    stack.add(id, Humidifier::ApiGateway::Method.new(
         authorization_type: 'NONE',
         http_method: gateway[:verb].to_s.upcase,
         integration: {
@@ -179,55 +199,22 @@ module AwsStackBuilder
             'lambdaArn' => Humidifier.fn.get_att([lambda, 'Arn'])
           ])
         },
-        rest_api_id: Humidifier.ref(gateway_id),
+        rest_api_id: Humidifier.ref(api_gateway_id),
         resource_id: Humidifier.ref(parent_resource) # last evaluated resource
       )
     )
 
     # deployment depends on the method
-    @api_gateway_deployment.depends_on << id
+    api_gateway_deployment.depends_on << id
   end
+end
 
-  def add_lambda_iam_role(function_name: nil)
-    @stack.add('LambdaRole', Humidifier::IAM::Role.new(
-        assume_role_policy_document: {
-          'Version' => "2012-10-17",
-          'Statement' => [
-            {
-              'Action' => ["sts:AssumeRole"],
-              'Effect' => "Allow",
-              'Principal' => {
-                'Service' => ["lambda.amazonaws.com"]
-              }
-            }
-          ]
-        },
-        policies: [
-          {
-            'policy_document' => {
-              'Version' => "2012-10-17",
-              'Statement' => [
-                {
-                  'Action' => [
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents",
-                  ],
-                  'Effect' => "Allow",
-                  'Resource' => Humidifier.fn.sub("arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*")
-                },
-                {
-                  'Action' => [
-                    "logs:CreateLogGroup",
-                  ],
-                  'Effect' => "Allow",
-                  'Resource' => "*"
-                }
-              ]
-            },
-            'policy_name' => "cloud-watch-access"
-          }
-        ]
-      )
-    )
+# delegate from humidifier instance to our module methods
+module Humidifier
+  class Stack
+    extend Forwardable
+    [AwsStackBuilder, AwsStackBuilder::LambdaPolicy].each do |mod|
+      def_delegators mod.to_s.to_sym, *mod.singleton_methods
+    end
   end
 end

@@ -1,7 +1,7 @@
 require 'json'
 
 require 'modulator/lambda/aws_lambda_handler'
-require 'modulator/lambda/aws_stack_builder'
+require 'modulator/lambda/stack_builder/aws_stack_builder'
 require 'utils'
 
 module Modulator
@@ -85,10 +85,10 @@ module Modulator
     lambda_def[:env]&.each{|name, value| ENV[name.to_s] = value.to_s} # custom values
   end
 
-  def init_stack(app_name:, bucket:, **stack_opts)
+  def init_stack(app_name: Pathname.getwd.basename.to_s, s3_bucket:, **stack_opts)
     stack = AwsStackBuilder.init({
         app_name: app_name.camelize,
-        bucket: bucket,
+        s3_bucket: s3_bucket,
       }.merge(stack_opts))
 
     # add lambdas to stack

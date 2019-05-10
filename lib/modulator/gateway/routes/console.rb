@@ -1,10 +1,4 @@
-require 'aws-sdk-cloudformation'
-
-# console API
 Gateway.route('console') do |r|
-
-  client    = Aws::CloudFormation::Client.new
-  app_name  = (opts[:app_dir] || Pathname.getwd.basename.to_s).camelize
 
   # helpers
   def capture_output
@@ -26,9 +20,19 @@ Gateway.route('console') do |r|
     end
   end
 
+  # list registered lambdas
+  r.on 'lambdas' do
+    r.get 'list' do
+      Modulator::LAMBDAS
+    end
+  end
+
+  # stack operations
   r.on 'stack' do
-    bucket_name = ENV['S3BUCKET'] || 'modulator-lambdas'
-    payload = request.params.symbolize_keys
+    client    = Aws::CloudFormation::Client.new
+    app_name  = (opts[:app_dir] || Pathname.getwd.basename.to_s).camelize
+    s3_bucket = opts[:s3_bucket] || ENV['MODULATOR_S3_BUCKET'] || 'modulator-lambdas'
+    payload   = request.params.symbolize_keys
     command_result = nil
 
     r.get 'events' do
@@ -37,6 +41,8 @@ Gateway.route('console') do |r|
       resp.stack_events.map(&:to_hash)
     end
 
+
+    # initialize stack
     r.on 'init' do
       serializer = :yaml
       content_type = 'text/html'
@@ -47,22 +53,13 @@ Gateway.route('console') do |r|
         r.pass
       end
 
-      # init stack
       stack = Modulator.init_stack(
-        app_name: app_name,
-        bucket: bucket_name,
-        timeout: 15
+        s3_bucket: s3_bucket,
+        timeout: 15,
+        skip_upload: true
       )
 
-      # add stack parameters if found in payload
-      bucket_name[:parameters]&.each do |param|
-        stack.add_parameter(param[:key],
-          description: param[:description],
-          type: param[:type],
-          value: param[:value]
-        )
-      end
-
+      # validate stack
       r.post 'valid' do
         command_output = capture_output do
           command_result = stack.valid?
@@ -70,19 +67,21 @@ Gateway.route('console') do |r|
         render_command_result(command_result, command_output)
       end
 
+      # deploy stack
       r.post 'deploy' do
         command_output = capture_output do
           command_result = stack.deploy(
-            parameters: bucket_name[:parameters]&.map{|param| {parameter_key: param[:key], parameter_value: param[:value]}},
+            parameters: s3_bucket[:parameters]&.map{|param| {parameter_key: param[:key], parameter_value: param[:value]}},
             capabilities: ['CAPABILITY_IAM']
           )
         end
         render_command_result(command_result, command_output)
       end
 
+      # print template
       r.post do
         response['Content-Type'] = content_type
-        template = stack.to_cf(serializer)
+        stack.to_cf(serializer)
       end
     end
   end
