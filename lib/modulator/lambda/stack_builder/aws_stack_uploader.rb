@@ -7,6 +7,22 @@ module AwsStackBuilder
 
   S3Client = Aws::S3::Client.new
 
+  # bundle gems and upload all for single lambda app
+  def upload_lambda_files
+    puts '- bundling dependencies'
+    Bundler.with_clean_env do
+      Dir.chdir(app_path) do
+        `bundle install`
+        `bundle install --deployment --without development`
+      end
+    end
+    FileUtils.remove_dir(app_path.join("vendor/bundle/ruby/#{GEM_PATH_RUBY_VERSION}/cache")) # remove cache dir
+    upload_app_layer(sub_dirs: '', add_layer_to_stack: false) # reuse layer upload
+    FileUtils.remove_dir(app_path.join('.bundle'))
+    FileUtils.remove_dir(app_path.join('vendor'))
+  end
+
+  # generic handler for all lambda
   def upload_generic_lambda_handler
     lambda_handler_key = LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
     source = <<~SOURCE
@@ -19,10 +35,13 @@ module AwsStackBuilder
       key: lambda_handler_key
     ) rescue false # not found
 
-    existing_source = Zip::InputStream.open(existing_handler.body) do |zip_file|
-      zip_file.get_next_entry
-      zip_file.read
-    end if existing_handler
+    if existing_handler
+      existing_source = Zip::InputStream.open(existing_handler.body) do |zip_file|
+        zip_file.get_next_entry
+        zip_file.read
+      end
+      self.lambda_handler_s3_object_version = existing_handler.version_id
+    end
 
     if existing_source != source
       puts '- uploading generic lambda handler'
@@ -30,11 +49,12 @@ module AwsStackBuilder
         zip.put_next_entry LAMBDA_HANDLER_FILE_NAME + '.rb'
         zip.print source
       end
-      S3Client.put_object(
+      new_handler = S3Client.put_object(
         bucket: s3_bucket,
         key: lambda_handler_key,
         body: source_zip_file.tap(&:rewind).read
       )
+      self.lambda_handler_s3_object_version = new_handler.version_id
     end
   end
 
@@ -50,7 +70,7 @@ module AwsStackBuilder
     new_checksum  = Digest::MD5.hexdigest(File.read(app_path.join('Gemfile.lock')))
 
     zip_file_name = app_dir + '_gems.zip'
-    gems_path = app_path.join(hidden_dir, 'gems')
+    gems_path     = app_path.join(hidden_dir, 'gems')
     gems_zip_path = app_path.join(hidden_dir, zip_file_name)
 
     if old_checksum != new_checksum
@@ -87,16 +107,16 @@ module AwsStackBuilder
     )
   end
 
-  def upload_app_layer
+  def upload_app_layer(sub_dirs: 'ruby/lib', add_layer_to_stack: true)
     zip_file_name = app_dir + '.zip'
     app_zip_path  = app_path.join(hidden_dir, zip_file_name)
 
-    # copy app code to ruby/lib in use outside temp dir
+    # copy app code to ruby/lib in outside temp dir
     temp_dir_name = '.modulator_temp'
-    ruby_lib_dirs = 'ruby/lib'
+    temp_sub_dirs = sub_dirs
     temp_path     = app_path.parent.join(temp_dir_name)
-    temp_path.join(ruby_lib_dirs).mkpath
-    FileUtils.copy_entry app_path, temp_path.join(ruby_lib_dirs)
+    temp_path.join(temp_sub_dirs).mkpath
+    FileUtils.copy_entry app_path, temp_path.join(temp_sub_dirs)
 
     # calculate checksum for app folder
     checksum_path = app_path.join(hidden_dir, 'app_checksum')
@@ -123,12 +143,17 @@ module AwsStackBuilder
     # delete temp dir
     FileUtils.remove_dir(temp_path)
 
-    add_layer(
-      name: app_name,
-      description: "App source. MD5: #{new_checksum}",
-      s3_key: zip_file_name,
-      s3_object_version: app_layer.version_id
-    )
+    if add_layer_to_stack
+      add_layer(
+        name: app_name,
+        description: "App source. MD5: #{new_checksum}",
+        s3_key: zip_file_name,
+        s3_object_version: app_layer.version_id
+      )
+    else # for single lambda app
+      self.lambda_handler_s3_key = zip_file_name
+      self.lambda_handler_s3_object_version = app_layer.version_id
+    end
   end
 
   # add layer

@@ -1,4 +1,5 @@
 describe 'Gateway console' do
+  Gateway.opts[:app_dir] = 'spec/test_app'
 
   require_relative '../test_app/pet'
   require_relative '../test_app/calculator/algebra'

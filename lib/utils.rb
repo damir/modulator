@@ -4,7 +4,7 @@ require 'zip'
 # the patched classes are used only in tests and tools
 class String
   def camelize
-    split('_').collect do |word|
+    gsub('-', '_').split('_').collect do |word|
       word[0] = word[0].upcase
       word
     end.join

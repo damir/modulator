@@ -20,9 +20,6 @@ describe 'CloudFormation template from AwsStackBuilder' do
       lambda_policies: [{name: :dynamo_db, opts: {prefixes: [:app_name, 'prefix'], prefix_separator: '-sep-'}}]
     )
 
-    # add some stack parameters
-    # $stack.add_parameter('Env', description: 'The deploy environment', type: 'String')
-
     # generated template
     pp template = JSON.parse($stack.to_cf(:json))
 
@@ -119,12 +116,14 @@ describe 'CloudFormation template from AwsStackBuilder' do
     template = JSON.parse($stack.to_cf(:json))
 
     # verify AWS::Lambda::Function
-    expect(template.dig('Resources', 'LambdaCalculatorAlgebraSum')).to eq(
+    lambda = template.dig('Resources', 'LambdaCalculatorAlgebraSum')
+    lambda['Properties']['Code']['S3ObjectVersion'] = 'dynamic' # s3 version_id
+    expect(lambda).to eq(
       {"Type"=>"AWS::Lambda::Function",
         "Properties"=>
          {"Description"=>"Lambda for Calculator::Algebra.sum",
           "FunctionName"=>"demo-app-calculator-algebra-sum",
-          "Handler"=>"lambda-handler.AwsLambdaHandler.call",
+          "Handler"=>"modulator-lambda-handler.AwsLambdaHandler.call",
           "Environment"=>
            {"Variables"=>
              {"abc"=>"123",
@@ -141,7 +140,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
           "Timeout"=>$timeout,
           "Runtime"=>"ruby2.5",
           "Code"=>
-           {"S3Bucket"=>$s3_bucket, "S3Key"=>"lambda-handler.rb.zip"},
+           {"S3Bucket"=>$s3_bucket, "S3Key"=>"modulator-lambda-handler.rb.zip", "S3ObjectVersion"=>"dynamic"},
           "Layers"=>[{"Ref"=>"DemoAppLayer"}, {"Ref"=>"DemoAppGemsLayer"}]}},
     )
 

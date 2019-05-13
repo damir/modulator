@@ -7,13 +7,15 @@ module AwsStackBuilder
   module_function
 
   RUBY_VERSION = 'ruby2.5'
-  GEM_PATH = '/opt/ruby/2.5.0'
-  LAMBDA_HANDLER_FILE_NAME = 'lambda-handler'
+  GEM_PATH_RUBY_VERSION = '2.5.0'
+  GEM_PATH = "/opt/ruby/#{GEM_PATH_RUBY_VERSION}"
+  LAMBDA_HANDLER_FILE_NAME = 'modulator-lambda-handler'
 
   class << self
-    attr_accessor :app_name, :stack, :api_gateway_deployment, :api_gateway_id
-    attr_accessor :app_path, :app_dir, :hidden_dir, :s3_bucket, :stack_opts
-    attr_accessor :lambda_policies
+    attr_accessor :stack, :stack_opts, :app_name, :app_path, :app_dir
+    attr_accessor :hidden_dir, :s3_bucket, :lambda_handler_s3_object_version
+    attr_accessor :api_gateway_deployment, :api_gateway_id, :lambda_policies
+    attr_accessor :single_lambda_handler, :lambda_handler_s3_key
   end
 
   def init(app_name:, s3_bucket:, **stack_opts)
@@ -24,6 +26,7 @@ module AwsStackBuilder
     @app_dir    = app_path.basename.to_s
     @hidden_dir = '.modulator'
     @stack_opts = stack_opts
+    @single_lambda_handler = stack_opts[:single_lambda_handler]
     @lambda_policies = Array(stack_opts[:lambda_policies]) << :cloudwatch
 
     # create hidden dir for build artifacts
@@ -32,16 +35,18 @@ module AwsStackBuilder
     # init stack instance
     self.stack = Humidifier::Stack.new(name: app_name, aws_template_format_version: '2010-09-09')
 
-    # api stage
-    stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
-
     # app environment -  test, development, production ...
     app_envs = stack_opts[:app_envs] || ['development']
     stack.add_parameter('AppEnvironment', description: 'Application environment', type: 'String', allowed_values: app_envs, constraint_description: "Must be one of #{app_envs.join(', ')}")
 
-    # add gateway
-    stack.add_api_gateway
-    stack.add_api_gateway_deployment
+    if !single_lambda_handler
+      # api stage
+      stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
+
+      # add gateway
+      stack.add_api_gateway
+      stack.add_api_gateway_deployment
+    end
 
     # add role
     stack.add_lambda_iam_role
@@ -52,8 +57,14 @@ module AwsStackBuilder
       stack.add_policy(policy[:name], **policy[:opts]) if policy.is_a?(Hash)
     end
 
-    # upload layers
-    stack.upload_files
+    # single lambda app
+    if stack.single_lambda_handler
+      stack.upload_lambda_files
+      stack.add_lambda_function(env: stack_opts[:env] || {}, settings: stack_opts[:settings] || {})
+    else
+      # upload handlers and layers
+      stack.upload_files
+    end
 
     # return humidifier instance
     stack
@@ -73,7 +84,7 @@ module AwsStackBuilder
 
   def add_lambda_endpoint(**opts) # gateway:, mod:, wrapper: {}, env: {}, settings: {}
     # add lambda
-    lambda = stack.add_lambda(opts)
+    lambda = stack.add_generic_lambda_function(opts)
     # add api resources
     stack.add_api_gateway_resources(gateway: opts[:gateway], lambda: lambda)
   end
@@ -99,45 +110,67 @@ module AwsStackBuilder
     api_gateway_deployment.depends_on = []
   end
 
-  # lambda function
-  def add_lambda(gateway:, mod:, wrapper: {}, env: {}, settings: {})
+  # single lambda app
+  def add_lambda_function(env: {}, settings: {})
+    lambda_resource = generate_lambda_resource(
+      description: "Lambda for #{stack.single_lambda_handler}",
+      function_name: ([app_name] << single_lambda_handler.split('.')).flatten.join('-').dasherize,
+      handler: single_lambda_handler,
+      s3_key: lambda_handler_s3_key,
+      env_vars: env.merge('app_env' => Humidifier.ref('AppEnvironment')),
+      settings: settings
+    )
+    stack.add(single_lambda_handler.gsub('.', '_').camelize, lambda_resource)
+  end
+
+  # gateway lambda function
+  def add_generic_lambda_function(gateway: {}, mod: {}, wrapper: {}, env: {}, settings: {})
     lambda_config = {}
     name_parts = mod[:name].split('::')
     {gateway: gateway, module: mod, wrapper: wrapper}.each do |env_group_prefix, env_group|
       env_group.each{|env_key, env_value| lambda_config["#{env_group_prefix}_#{env_key}"] = env_value}
     end
+    env_vars = env
+        .reduce({}){|env_as_string, (k, v)| env_as_string.update(k.to_s => v.to_s)}
+        .merge(lambda_config)
+        .merge(
+          'GEM_PATH' => GEM_PATH,
+          'app_dir' => app_dir,
+          'app_env' => Humidifier.ref('AppEnvironment')
+        )
 
-    lambda_function = Humidifier::Lambda::Function.new(
+    lambda_resource = generate_lambda_resource(
       description: "Lambda for #{mod[:name]}.#{mod[:method]}",
-      function_name: [app_name.dasherize, name_parts, mod[:method]].flatten.map(&:downcase).join('-'),
+      function_name: [app_name, name_parts, mod[:method]].flatten.join('-').dasherize,
       handler: "#{LAMBDA_HANDLER_FILE_NAME}.AwsLambdaHandler.call",
-      environment: {
-        variables: env
-          .reduce({}){|env_as_string, (k, v)| env_as_string.update(k.to_s => v.to_s)}
-          .merge(lambda_config)
-          .merge(
-            'GEM_PATH' => GEM_PATH,
-            'app_dir' => app_dir,
-            'app_env' => Humidifier.ref('AppEnvironment')
-          )
-      },
+      s3_key: LAMBDA_HANDLER_FILE_NAME + '.rb.zip',
+      env_vars: env_vars,
+      settings: settings,
+      layers: [Humidifier.ref(app_name + 'Layer'), Humidifier.ref(app_name + 'GemsLayer')]
+    )
+    id = ['Lambda', name_parts, mod[:method].capitalize].join
+    stack.add(id, lambda_resource)
+    stack.add_lambda_invoke_permission(id: id, gateway: gateway)
+    id
+  end
+
+  def generate_lambda_resource(description:, function_name:, handler:, s3_key:, env_vars:, settings:, layers: [])
+    lambda_function = Humidifier::Lambda::Function.new(
+      description: description,
+      function_name: function_name,
+      handler: handler,
+      environment: {variables: env_vars},
       role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
       timeout: settings[:timeout] || stack_opts[:timeout] || 15,
       memory_size: settings[:memory_size] || stack_opts[:memory_size] || 128,
       runtime: RUBY_VERSION,
       code: {
         s3_bucket: s3_bucket,
-        s3_key: LAMBDA_HANDLER_FILE_NAME + '.rb.zip'
+        s3_key: s3_key,
+        s3_object_version: lambda_handler_s3_object_version
       },
-      layers: [
-        Humidifier.ref(app_name + 'Layer'),
-        Humidifier.ref(app_name + 'GemsLayer')
-      ]
+      layers: layers
     )
-    id = ['Lambda', name_parts, mod[:method].capitalize].join
-    stack.add(id, lambda_function)
-    add_lambda_invoke_permission(id: id, gateway: gateway)
-    id
   end
 
   # invoke permission

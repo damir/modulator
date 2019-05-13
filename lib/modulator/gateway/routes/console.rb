@@ -12,11 +12,12 @@ Gateway.route('console') do |r|
       $stderr = previous_stderr
   end
 
-  def render_command_result(command_result, command_output)
-    if command_result
-      command_result.to_hash
+  # cf call return value or its capture from stdout
+  def render_cf_call_output(cf_call_result, cf_call_output, cf_call_name = 'aws cf sdk call')
+    if cf_call_result
+      cf_call_result.to_hash
     else
-      {'aws-sdk-cloudformation': command_output.split("\n").first}
+      {cf_call_name => cf_call_output.split("\n").first}
     end
   end
 
@@ -33,7 +34,7 @@ Gateway.route('console') do |r|
     app_name  = (opts[:app_dir] || Pathname.getwd.basename.to_s).camelize
     s3_bucket = opts[:s3_bucket] || ENV['MODULATOR_S3_BUCKET'] || 'modulator-lambdas'
     payload   = request.params.symbolize_keys
-    command_result = nil
+    cf_call_result = nil
 
     r.get 'events' do
       resp = client.describe_stack_events(stack_name: app_name, next_token: @headers['X-Next-Token'])
@@ -55,27 +56,26 @@ Gateway.route('console') do |r|
 
       stack = Modulator.init_stack(
         s3_bucket: s3_bucket,
-        timeout: 15,
-        skip_upload: true
+        timeout: 15
       )
 
       # validate stack
-      r.post 'valid' do
-        command_output = capture_output do
-          command_result = stack.valid?
+      r.post 'validate' do
+        cf_call_output = capture_output do
+          cf_call_result = stack.valid?
         end
-        render_command_result(command_result, command_output)
+        render_cf_call_output(cf_call_result, cf_call_output, 'stack validation call')
       end
 
       # deploy stack
       r.post 'deploy' do
-        command_output = capture_output do
-          command_result = stack.deploy(
+        cf_call_output = capture_output do
+          cf_call_result = stack.deploy(
             parameters: s3_bucket[:parameters]&.map{|param| {parameter_key: param[:key], parameter_value: param[:value]}},
             capabilities: ['CAPABILITY_IAM']
           )
         end
-        render_command_result(command_result, command_output)
+        render_cf_call_output(cf_call_result, cf_call_output)
       end
 
       # print template

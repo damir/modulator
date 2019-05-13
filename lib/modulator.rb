@@ -6,7 +6,11 @@ require 'utils'
 
 module Modulator
   module_function
-  LAMBDAS   = {}
+  LAMBDAS = {}
+
+  class << self
+    attr_accessor :stack
+  end
 
   def add_lambda(lambda_def, **opts) # opts are for overrides
     if lambda_def.is_a?(Hash)
@@ -91,6 +95,18 @@ module Modulator
         s3_bucket: s3_bucket,
       }.merge(stack_opts))
 
+    # validate stack
+    # puts 'Validating stack'
+    # puts '- it is valid' if stack.valid?
+
+    self.stack = stack
+    generate_endoints
+
+    # return humidifier instance
+    stack
+  end
+
+  def generate_endoints
     # add lambdas to stack
     puts 'Generating endpoints'
     LAMBDAS.each do |name, config|
@@ -103,12 +119,5 @@ module Modulator
         settings: config[:settings] || {}
       )
     end
-
-    # validate stack
-    # puts 'Validating stack'
-    # puts '- it is valid' if stack.valid?
-
-    # return humidifier instance
-    stack
   end
 end
