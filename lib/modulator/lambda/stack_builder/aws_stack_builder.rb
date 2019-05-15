@@ -15,7 +15,7 @@ module AwsStackBuilder
     attr_accessor :stack, :stack_opts, :app_name, :app_path, :app_dir
     attr_accessor :hidden_dir, :s3_bucket, :lambda_handler_s3_object_version
     attr_accessor :api_gateway_deployment, :api_gateway_id, :lambda_policies
-    attr_accessor :single_lambda_handler, :lambda_handler_s3_key
+    attr_accessor :lambda_handlers, :lambda_handler_s3_key
   end
 
   def init(app_name:, s3_bucket:, **stack_opts)
@@ -26,7 +26,7 @@ module AwsStackBuilder
     @app_dir    = app_path.basename.to_s
     @hidden_dir = '.modulator'
     @stack_opts = stack_opts
-    @single_lambda_handler = stack_opts[:single_lambda_handler]
+    @lambda_handlers = stack_opts[:lambda_handlers] || []
     @lambda_policies = Array(stack_opts[:lambda_policies]) << :cloudwatch
 
     # create hidden dir for build artifacts
@@ -39,7 +39,7 @@ module AwsStackBuilder
     app_envs = stack_opts[:app_envs] || ['development']
     stack.add_parameter('AppEnvironment', description: 'Application environment', type: 'String', allowed_values: app_envs, constraint_description: "Must be one of #{app_envs.join(', ')}")
 
-    if !single_lambda_handler
+    if lambda_handlers.empty?
       # api stage
       stack.add_parameter('ApiGatewayStageName', description: 'Gateway deployment stage', type: 'String', default: 'v1')
 
@@ -54,13 +54,15 @@ module AwsStackBuilder
     # add policies to role
     stack.lambda_policies.each do |policy|
       stack.add_policy(policy) if policy.is_a?(Symbol)
-      stack.add_policy(policy[:name], **policy[:opts]) if policy.is_a?(Hash)
+      stack.add_policy(policy[:name], **policy) if policy.is_a?(Hash)
     end
 
-    # single lambda app
-    if stack.single_lambda_handler
+    # simple lambda app
+    if lambda_handlers.any?
       stack.upload_lambda_files
-      stack.add_lambda_function(env: stack_opts[:env] || {}, settings: stack_opts[:settings] || {})
+      lambda_handlers.each do |handler|
+        stack.add_lambda_function(handler: handler, env: stack_opts[:env] || {}, settings: stack_opts[:settings] || {})
+      end
     else
       # upload handlers and layers
       stack.upload_files
@@ -110,17 +112,17 @@ module AwsStackBuilder
     api_gateway_deployment.depends_on = []
   end
 
-  # single lambda app
-  def add_lambda_function(env: {}, settings: {})
+  # simple lambda app
+  def add_lambda_function(handler:, env: {}, settings: {})
     lambda_resource = generate_lambda_resource(
-      description: "Lambda for #{stack.single_lambda_handler}",
-      function_name: ([app_name] << single_lambda_handler.split('.')).flatten.join('-').dasherize,
-      handler: single_lambda_handler,
+      description: "Lambda for #{handler}",
+      function_name: ([app_name] << handler.split('.')).flatten.join('-').dasherize,
+      handler: handler,
       s3_key: lambda_handler_s3_key,
       env_vars: env.merge('app_env' => Humidifier.ref('AppEnvironment')),
       settings: settings
     )
-    stack.add(single_lambda_handler.gsub('.', '_').camelize, lambda_resource)
+    stack.add(handler.gsub('.', '_').camelize, lambda_resource)
   end
 
   # gateway lambda function

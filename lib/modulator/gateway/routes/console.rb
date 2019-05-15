@@ -32,7 +32,7 @@ Gateway.route('console') do |r|
   r.on 'stack' do
     client    = Aws::CloudFormation::Client.new
     app_name  = (opts[:app_dir] || Pathname.getwd.basename.to_s).camelize
-    s3_bucket = opts[:s3_bucket] || ENV['MODULATOR_S3_BUCKET'] || 'modulator-lambdas'
+    s3_bucket = opts[:s3_bucket] || ENV['MODULATOR_S3_BUCKET'] || 'modulator-apps'
     payload   = request.params.symbolize_keys
     cf_call_result = nil
 

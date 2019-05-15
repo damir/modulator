@@ -100,7 +100,7 @@ module Modulator
     # puts '- it is valid' if stack.valid?
 
     self.stack = stack
-    generate_endoints
+    generate_endoints if LAMBDAS.any?
 
     # return humidifier instance
     stack

@@ -3,7 +3,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
     Dir.chdir('spec/test_app')
 
     # provide your own bucket via env
-    $s3_bucket = ENV['MODULATOR_S3_BUCKET'] || 'modulator-lambdas'
+    $s3_bucket = ENV['MODULATOR_S3_BUCKET'] || 'modulator-apps'
 
     # stack settings
     $timeout = 20
@@ -17,7 +17,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
       timeout: $timeout,
       memory_size: $memory_size,
       app_envs: $app_envs,
-      lambda_policies: [{name: :dynamo_db, opts: {prefixes: [:app_name, 'prefix'], prefix_separator: '-sep-'}}]
+      lambda_policies: [{name: :dynamo_db, prefixes: [:app_name, 'prefix'], prefix_separator: '-sep-'}]
     )
 
     # generated template

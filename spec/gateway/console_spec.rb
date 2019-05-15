@@ -15,16 +15,16 @@ describe 'Gateway console' do
     expect(response).to eq(Modulator::LAMBDAS.stringify_keys)
   end
 
-  it 'POST to stack/init for JSON' do
-    post '/console/stack/init/json', {}
-    expect(status).to eq(200)
-    expect(response.keys).to eq($template_keys)
-  end
+  # it 'POST to stack/init for JSON' do
+  #   post '/console/stack/init/json', {}
+  #   expect(status).to eq(200)
+  #   expect(response.keys).to eq($template_keys)
+  # end
 
-  it 'POST to stack/init for YAML' do
-    post '/console/stack/init', {}
-    expect(status).to eq(200)
-    template = Psych.load(response)
-    expect(template.keys).to eq($template_keys)
-  end
+  # it 'POST to stack/init for YAML' do
+  #   post '/console/stack/init', {}
+  #   expect(status).to eq(200)
+  #   template = Psych.load(response)
+  #   expect(template.keys).to eq($template_keys)
+  # end
 end

@@ -56,7 +56,9 @@ module AwsStackBuilder
       }
     end
 
-    def dynamo_db(prefixes: [], prefix_separator: '-')
+    def dynamo_db(**opts)
+      prefixes = opts[:prefixes] || []
+      prefix_separator = opts[:prefix_separator] || '-'
       wildcard = '*'
       if prefixes.any?
         prefixes.map!{|prefix| prefix == :app_name ? AwsStackBuilder.stack.app_name.dasherize.split('-') : prefix}
