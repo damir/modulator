@@ -3,7 +3,7 @@ require_relative '../test_app/calculator/algebra'
 describe 'Gateway with implicit definition with overrides' do
   it 'POST to Calculator::Algebra.sum with rearranged path and extra env' do
     Gateway.opts[:app_dir] = 'spec/test_app'
-    Modulator.add_lambda(Calculator::Algebra,
+    Modulator.register(Calculator::Algebra,
       sum: {
         gateway: {
           verb: 'POST',

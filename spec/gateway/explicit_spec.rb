@@ -9,7 +9,7 @@ describe 'Gateway with explicit definitions' do
   end
 
   it 'POST to pets/create' do
-    Modulator.add_lambda($lambda_defs.dig(:pet, :create))
+    Modulator.register($lambda_defs.dig(:pet, :create))
     payload = {id: 1, name: 'Bubi'}
     post '/pets/create', payload
     expect(status).to eq(200)
@@ -23,7 +23,7 @@ describe 'Gateway with explicit definitions' do
   end
 
   it 'POST to pets/update' do
-    Modulator.add_lambda($lambda_defs.dig(:pet, :update))
+    Modulator.register($lambda_defs.dig(:pet, :update))
     payload = {id: 1, name: 'Cleo'}
     post '/pets/1/update', payload
     expect(status).to eq(200)
@@ -31,21 +31,21 @@ describe 'Gateway with explicit definitions' do
   end
 
   it 'GET to pets/list' do
-    Modulator.add_lambda($lambda_defs.dig(:pet, :list))
+    Modulator.register($lambda_defs.dig(:pet, :list))
     get '/pets/list'
     expect(status).to eq(200)
     expect(response).to eq(Pet::PETS.stringify_keys)
   end
 
   it 'GET to pets/1/show' do
-    Modulator.add_lambda($lambda_defs.dig(:pet, :show))
+    Modulator.register($lambda_defs.dig(:pet, :show))
     get '/pets/1/show'
     expect(status).to eq(200)
     expect(response).to eq(Pet::PETS[1].stringify_keys)
   end
 
   it 'DELETE to pets/1/delete' do
-    Modulator.add_lambda($lambda_defs.dig(:pet, :delete))
+    Modulator.register($lambda_defs.dig(:pet, :delete))
     delete '/pets/1/delete'
     expect(status).to eq(200)
     expect(response).to eq({id: 1, name: 'Cleo'}.stringify_keys)

@@ -1,18 +1,21 @@
 $spec_path = Pathname.new(__FILE__).dirname
 $app_path  = $spec_path.join('test_app')
 
+# aws input
+$aws_event = {}
+$aws_context = {}
+
 # libs
 require 'utils'
 require 'modulator'
 
 # spec helpers
 require_relative 'gateway/helper'
-require_relative 'lambda/helper'
 require_relative 'test_app/lambda_defs'
 
 def execute_lambda(event: $aws_event, context: $aws_context, app_path: $spec_path)
   Dir.chdir(app_path) do
-    AwsLambdaHandler.call(event: event, context: context)
+    LambdaHandler.call(event: event, context: context)
   end
 end
 

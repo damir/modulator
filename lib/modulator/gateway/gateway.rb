@@ -12,7 +12,7 @@ class Gateway < Roda
 
   my_dir = Pathname.new(__FILE__).dirname
   my_dir.glob('routes/*.rb').each{|file| require_relative file}
-  DUMMY_AWS_EVENT = Utils.load_json my_dir.parent.join('lambda/aws_gateway_event.json')
+  DUMMY_AWS_EVENT = Utils.load_json my_dir.parent.join('gateway_event.json')
 
   before do
     @time = Time.now
@@ -32,7 +32,7 @@ class Gateway < Roda
   after do |res|
     puts "Matched path: #{request.matched_path}"
     puts "Status: #{response.status}"
-    puts ("Took: #{Time.now - @time} seconds")
+    puts "Took: #{Time.now - @time} seconds"
   end
 
   plugin :error_handler do |e|
@@ -51,11 +51,9 @@ class Gateway < Roda
 
     # process lambda configs
     Modulator::LAMBDAS.each do |lambda_name, lambda_config|
-      # puts "* Registering #{lambda_name}"
-      # pp lambda_config
 
-      # module and wrapper config
-      Modulator.set_env lambda_config
+      # copy config to env
+      Modulator.set_env_values lambda_config
 
       # build route
       @path_params = {}
@@ -112,7 +110,7 @@ class Gateway < Roda
 
       # execute lambda
       result = Dir.chdir(opts[:app_dir] || '.') do
-        AwsLambdaHandler.call(event: aws_event, context: aws_context)
+        LambdaHandler.call(event: aws_event, context: aws_context)
       end
 
       # render

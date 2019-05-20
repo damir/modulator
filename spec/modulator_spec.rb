@@ -7,13 +7,13 @@ describe 'Modulator::LAMBDAS integrity' do
   it 'registers lambda explicitly' do
     Modulator::LAMBDAS.clear
     lambda_config = $lambda_defs.dig(:pet, :create)
-    Modulator.add_lambda(lambda_config)
+    Modulator.register(lambda_config)
     expect(Modulator::LAMBDAS).to eq(lambda_config[:name] => lambda_config.merge($empty_defs))
   end
 
   it 'registers module with namespace' do
     Modulator::LAMBDAS.clear
-    Modulator.add_lambda(Calculator::Algebra)
+    Modulator.register(Calculator::Algebra)
     expect(Modulator::LAMBDAS['calculator-algebra-sum']).to eq(
       {:name=>"calculator-algebra-sum",
         :gateway=>{:verb=>"GET", :path=>"calculator/algebra/:x/:y/sum"},
@@ -27,7 +27,7 @@ describe 'Modulator::LAMBDAS integrity' do
 
   it 'registers module with overriden path and verb' do
     Modulator::LAMBDAS.clear
-    Modulator.add_lambda(Calculator::Algebra, sum: {
+    Modulator.register(Calculator::Algebra, sum: {
         gateway: {
           verb: 'POST',
           path: 'calc/:x/add/:y'
@@ -48,21 +48,21 @@ describe 'Modulator::LAMBDAS integrity' do
   it 'registers module with custom env' do
     Modulator::LAMBDAS.clear
     env = {abc: 123}
-    Modulator.add_lambda(Calculator::Algebra, sum: {env: env})
+    Modulator.register(Calculator::Algebra, sum: {env: env})
     expect(Modulator::LAMBDAS['calculator-algebra-sum'][:env]).to eq(env)
   end
 
   it 'registers module with settings' do
     Modulator::LAMBDAS.clear
     settings = {timeout: 100}
-    Modulator.add_lambda(Calculator::Algebra, sum: {settings: settings})
+    Modulator.register(Calculator::Algebra, sum: {settings: settings})
     expect(Modulator::LAMBDAS['calculator-algebra-sum'][:settings]).to eq(settings)
   end
 
   # verify settings form reflection on method signatures
   it 'registers multiple modules' do
     Modulator::LAMBDAS.clear
-    Modulator.add_lambda(Pet)
+    Modulator.register(Pet)
     expect(Modulator::LAMBDAS.keys).to eq %w(pet-create pet-delete pet-list pet-show pet-update)
   end
 
@@ -73,7 +73,7 @@ describe 'Modulator::LAMBDAS integrity' do
       method: 'authorize',
       path: 'wrapper'
     }
-    Modulator.add_lambda(Pet, wrapper: wrapper)
+    Modulator.register(Pet, wrapper: wrapper)
 
     # verify that all methods are wrapped
     Modulator::LAMBDAS.each do |name, _defs|
@@ -82,7 +82,7 @@ describe 'Modulator::LAMBDAS integrity' do
   end
 
   it 'registers module as GET lambda without arguments' do
-    Modulator.add_lambda(Pet)
+    Modulator.register(Pet)
     expect(Modulator::LAMBDAS['pet-list']).to eq({
       name: 'pet-list',
       :module => {:method=>"list", :name=>"Pet", :path=>"pet"},

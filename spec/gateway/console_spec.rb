@@ -3,8 +3,8 @@ describe 'Gateway console' do
 
   require_relative '../test_app/pet'
   require_relative '../test_app/calculator/algebra'
-  Modulator.add_lambda(Pet)
-  Modulator.add_lambda(Calculator::Algebra)
+  Modulator.register(Pet)
+  Modulator.register(Calculator::Algebra)
 
   $template_keys = %w[AWSTemplateFormatVersion Outputs Parameters Resources]
 

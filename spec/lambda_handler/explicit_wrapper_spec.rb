@@ -2,7 +2,7 @@ describe 'Handler with wrapped explicit definitions' do
   $payload = {id: 1, name: 'Bubi'}
 
   it 'early return when wrapper returns status' do
-    Modulator.set_env $lambda_defs.dig(:pet, :create)
+    Modulator.set_env_values $lambda_defs.dig(:pet, :create)
       .merge wrapper: {
         name: 'Wrapper',
         method: 'authorize',
@@ -26,7 +26,7 @@ describe 'Handler with wrapped explicit definitions' do
   end
 
   it 'executes pet-create lambda with optional args from executor' do
-    Modulator.set_env $lambda_defs.dig(:pet, :create)
+    Modulator.set_env_values $lambda_defs.dig(:pet, :create)
       .merge wrapper: {
         name: 'Wrapper',
         method: 'rename',

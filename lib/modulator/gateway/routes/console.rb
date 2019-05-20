@@ -42,7 +42,6 @@ Gateway.route('console') do |r|
       resp.stack_events.map(&:to_hash)
     end
 
-
     # initialize stack
     r.on 'init' do
       serializer = :yaml

@@ -1,9 +1,9 @@
 require 'forwardable'
 require 'humidifier'
-require_relative 'aws_stack_uploader'
-require_relative 'aws_lambda_policies'
+require_relative 'uploader'
+require_relative 'policies'
 
-module AwsStackBuilder
+module StackBuilder
   module_function
 
   RUBY_VERSION = 'ruby2.5'
@@ -61,7 +61,7 @@ module AwsStackBuilder
     if lambda_handlers.any?
       stack.upload_lambda_files
       lambda_handlers.each do |handler|
-        stack.add_lambda_function(handler: handler, env: stack_opts[:env] || {}, settings: stack_opts[:settings] || {})
+        stack.add_lambda(handler: handler, env: stack_opts[:env] || {}, settings: stack_opts[:settings] || {})
       end
     else
       # upload handlers and layers
@@ -83,12 +83,9 @@ module AwsStackBuilder
     stack.upload_app_layer
   end
 
-
   def add_lambda_endpoint(**opts) # gateway:, mod:, wrapper: {}, env: {}, settings: {}
-    # add lambda
-    lambda = stack.add_generic_lambda_function(opts)
-    # add api resources
-    stack.add_api_gateway_resources(gateway: opts[:gateway], lambda: lambda)
+    # add api resources and its lambda
+    stack.add_api_gateway_resources(gateway: opts[:gateway], lambda: stack.add_generic_lambda(opts))
   end
 
   # gateway
@@ -112,21 +109,22 @@ module AwsStackBuilder
     api_gateway_deployment.depends_on = []
   end
 
-  # simple lambda app
-  def add_lambda_function(handler:, env: {}, settings: {})
+  # custom lambda function
+  def add_lambda(handler:, env: {}, settings: {})
     lambda_resource = generate_lambda_resource(
       description: "Lambda for #{handler}",
       function_name: ([app_name] << handler.split('.')).flatten.join('-').dasherize,
       handler: handler,
       s3_key: lambda_handler_s3_key,
       env_vars: env.merge('app_env' => Humidifier.ref('AppEnvironment')),
+      role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
       settings: settings
     )
     stack.add(handler.gsub('.', '_').camelize, lambda_resource)
   end
 
-  # gateway lambda function
-  def add_generic_lambda_function(gateway: {}, mod: {}, wrapper: {}, env: {}, settings: {})
+  # generic lambda function for gateway
+  def add_generic_lambda(gateway: {}, mod: {}, wrapper: {}, env: {}, settings: {})
     lambda_config = {}
     name_parts = mod[:name].split('::')
     {gateway: gateway, module: mod, wrapper: wrapper}.each do |env_group_prefix, env_group|
@@ -137,32 +135,35 @@ module AwsStackBuilder
         .merge(lambda_config)
         .merge(
           'GEM_PATH' => GEM_PATH,
-          'app_dir' => app_dir,
-          'app_env' => Humidifier.ref('AppEnvironment')
+          'app_dir'  => app_dir,
+          'app_env'  => Humidifier.ref('AppEnvironment')
         )
 
     lambda_resource = generate_lambda_resource(
       description: "Lambda for #{mod[:name]}.#{mod[:method]}",
       function_name: [app_name, name_parts, mod[:method]].flatten.join('-').dasherize,
-      handler: "#{LAMBDA_HANDLER_FILE_NAME}.AwsLambdaHandler.call",
+      handler: "#{LAMBDA_HANDLER_FILE_NAME}.LambdaHandler.call",
       s3_key: LAMBDA_HANDLER_FILE_NAME + '.rb.zip',
       env_vars: env_vars,
+      role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
       settings: settings,
       layers: [Humidifier.ref(app_name + 'Layer'), Humidifier.ref(app_name + 'GemsLayer')]
     )
-    id = ['Lambda', name_parts, mod[:method].capitalize].join
-    stack.add(id, lambda_resource)
-    stack.add_lambda_invoke_permission(id: id, gateway: gateway)
-    id
+
+    # add to stack
+    ['Lambda', name_parts, mod[:method].capitalize].join.tap do |id|
+      stack.add(id, lambda_resource)
+      stack.add_lambda_invoke_permission(id: id, gateway: gateway)
+    end
   end
 
-  def generate_lambda_resource(description:, function_name:, handler:, s3_key:, env_vars:, settings:, layers: [])
+  def generate_lambda_resource(description:, function_name:, handler:, s3_key:, env_vars:, role:, settings:, layers: [])
     lambda_function = Humidifier::Lambda::Function.new(
       description: description,
       function_name: function_name,
       handler: handler,
       environment: {variables: env_vars},
-      role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
+      role: role,
       timeout: settings[:timeout] || stack_opts[:timeout] || 15,
       memory_size: settings[:memory_size] || stack_opts[:memory_size] || 128,
       runtime: RUBY_VERSION,
@@ -239,16 +240,16 @@ module AwsStackBuilder
       )
     )
 
-    # deployment depends on the method
+    # deployment depends on each endpoint
     api_gateway_deployment.depends_on << id
   end
 end
 
-# delegate from humidifier instance to our module methods
+# delegate from stack instance to our module
 module Humidifier
   class Stack
     extend Forwardable
-    [AwsStackBuilder, AwsStackBuilder::LambdaPolicy].each do |mod|
+    [StackBuilder, StackBuilder::LambdaPolicy].each do |mod|
       def_delegators mod.to_s.to_sym, *mod.singleton_methods
     end
   end

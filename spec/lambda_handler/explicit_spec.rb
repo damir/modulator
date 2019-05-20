@@ -1,6 +1,6 @@
 describe 'Handler with explicit definitions' do
   it 'executes pet-create lambda with 500 when exception is thrown' do
-    Modulator.set_env $lambda_defs.dig(:pet, :create)
+    Modulator.set_env_values $lambda_defs.dig(:pet, :create)
     payload = {id: 1, name: 'Bubi', error: true}
     response = execute_lambda(event: $aws_event.merge('body' => payload.to_json, 'pathParameters' => {}))
     expect(response[:statusCode]).to eq(500)

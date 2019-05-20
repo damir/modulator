@@ -3,7 +3,7 @@ require_relative '../test_app/pet'
 describe 'Gateway with implicit definitions' do
   before(:each) do
     Gateway.opts[:app_dir] = 'spec/test_app'
-    Modulator.add_lambda(Pet)
+    Modulator.register(Pet)
   end
 
   it 'POST to Pet.create' do

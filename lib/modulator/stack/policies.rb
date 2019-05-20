@@ -1,11 +1,10 @@
-module AwsStackBuilder
+module StackBuilder
   module LambdaPolicy
     module_function
 
-    # add inline iam role to function
-    # use same role for all lambdas for now
+    # add inline iam role to lambda, NOTE: use the same role for all lambdas for now
     def add_lambda_iam_role(function_name: nil)
-      AwsStackBuilder.stack.add('LambdaRole', Humidifier::IAM::Role.new(
+      StackBuilder.stack.add('LambdaRole', Humidifier::IAM::Role.new(
           assume_role_policy_document: {
             "Version" => "2012-10-17",
             'Statement' => [
@@ -24,10 +23,10 @@ module AwsStackBuilder
     end
 
     def add_policy(policy, **opts)
-      AwsStackBuilder.stack.resources['LambdaRole'].properties['policies'] << send(policy, opts)
+      StackBuilder.stack.resources['LambdaRole'].properties['policies'] << send(policy, opts)
     end
 
-    # policy to acces cloudwatch
+    # policy to access cloudwatch
     def cloudwatch(**opts)
       {
         "policy_document" => {
@@ -56,12 +55,13 @@ module AwsStackBuilder
       }
     end
 
+    # policy to access prefixed dynamo tables
     def dynamo_db(**opts)
       prefixes = opts[:prefixes] || []
       prefix_separator = opts[:prefix_separator] || '-'
       wildcard = '*'
       if prefixes.any?
-        prefixes.map!{|prefix| prefix == :app_name ? AwsStackBuilder.stack.app_name.dasherize.split('-') : prefix}
+        prefixes.map!{|prefix| prefix == :app_name ? StackBuilder.stack.app_name.dasherize.split('-') : prefix}
         wildcard = "#{(prefixes << '*').join(prefix_separator)}"
       end
       {
@@ -91,8 +91,8 @@ module AwsStackBuilder
       }
     end
 
-
-    def secret_manager
+    # TODO: add access to named secrets
+    def secret_manager(**opts)
 
     end
   end

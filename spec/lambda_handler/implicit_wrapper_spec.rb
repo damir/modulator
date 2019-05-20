@@ -4,14 +4,14 @@ describe 'Wrappers for implicit definitions' do
   $payload = {id: 1, name: 'Bubi'}
 
   it 'executes pet-create with common wrapper for the module' do
-    Modulator.add_lambda(Pet,
+    Modulator.register(Pet,
       wrapper: {
         name: 'Wrapper',
         method: 'authorize',
         path: 'wrapper'
       }
     )
-    Modulator.set_env Modulator::LAMBDAS['pet-create']
+    Modulator.set_env_values Modulator::LAMBDAS['pet-create']
 
     response = execute_lambda(
       event: $aws_event.merge(
@@ -26,7 +26,7 @@ describe 'Wrappers for implicit definitions' do
   end
 
   it 'executes pet-create with wrapper for the method' do
-    Modulator.add_lambda(Pet,
+    Modulator.register(Pet,
       wrapper: {
         name: 'other',
         method: 'other',
@@ -40,7 +40,7 @@ describe 'Wrappers for implicit definitions' do
         }
       }
     )
-    Modulator.set_env Modulator::LAMBDAS['pet-create']
+    Modulator.set_env_values Modulator::LAMBDAS['pet-create']
 
     response = execute_lambda(
       event: $aws_event.merge(

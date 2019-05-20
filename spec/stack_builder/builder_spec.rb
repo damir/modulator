@@ -1,4 +1,4 @@
-describe 'CloudFormation template from AwsStackBuilder' do
+describe 'CloudFormation template from StackBuilder' do
   it 'builds ApiGatewayRestApi' do
     Dir.chdir('spec/test_app')
 
@@ -11,7 +11,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
     $app_envs = %w(development test production)
 
     # init stack
-    $stack = AwsStackBuilder.init(
+    $stack = StackBuilder.init(
       app_name: 'DemoApp',
       s3_bucket: $s3_bucket,
       timeout: $timeout,
@@ -123,7 +123,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
         "Properties"=>
          {"Description"=>"Lambda for Calculator::Algebra.sum",
           "FunctionName"=>"demo-app-calculator-algebra-sum",
-          "Handler"=>"modulator-lambda-handler.AwsLambdaHandler.call",
+          "Handler"=>"modulator-lambda-handler.LambdaHandler.call",
           "Environment"=>
            {"Variables"=>
              {"abc"=>"123",
@@ -226,7 +226,7 @@ describe 'CloudFormation template from AwsStackBuilder' do
     )
 
     app_layer = template.dig('Resources', 'DemoAppLayer')
-    checksum = Pathname.getwd.join(AwsStackBuilder.app_path, AwsStackBuilder.hidden_dir, 'app_checksum').read
+    checksum = Pathname.getwd.join(StackBuilder.app_path, StackBuilder.hidden_dir, 'app_checksum').read
     app_layer['Properties']['Content']['S3ObjectVersion'] = 'dynamic'
     expect(app_layer).to eq(
       {"Type"=>"AWS::Lambda::LayerVersion",

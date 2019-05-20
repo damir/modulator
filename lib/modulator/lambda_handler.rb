@@ -1,6 +1,6 @@
 require 'pathname'
 
-module AwsLambdaHandler
+module LambdaHandler
   module_function
 
   # select event handler
@@ -96,7 +96,7 @@ module AwsApiGatewayEventHandler
       mod.send(mod_method, *path_params.values)
 
     elsif verb == 'POST'
-      payload = AwsLambdaHandler.symbolize_keys(JSON.parse(event['body']))
+      payload = LambdaHandler.symbolize_keys(JSON.parse(event['body']))
       method_signature.each do |arg_type, arg_name|         # [[:req, :id], [:key, :pet]]
         payload = {arg_name => payload} if arg_type == :key # scope payload to first named argument
       end
