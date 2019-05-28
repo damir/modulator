@@ -110,7 +110,7 @@ class Gateway < Roda
 
       # execute lambda
       result = Dir.chdir(opts[:app_dir] || '.') do
-        LambdaHandler.call(event: aws_event, context: aws_context)
+        AwsLambdaHandler.call(event: aws_event, context: aws_context)
       end
 
       # render

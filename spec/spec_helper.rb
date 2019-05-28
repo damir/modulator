@@ -15,7 +15,7 @@ require_relative 'test_app/lambda_defs'
 
 def execute_lambda(event: $aws_event, context: $aws_context, app_path: $spec_path)
   Dir.chdir(app_path) do
-    LambdaHandler.call(event: event, context: context)
+    AwsLambdaHandler.call(event: event, context: context)
   end
 end
 

@@ -123,7 +123,7 @@ describe 'CloudFormation template from StackBuilder' do
         "Properties"=>
          {"Description"=>"Lambda for Calculator::Algebra.sum",
           "FunctionName"=>"demo-app-calculator-algebra-sum",
-          "Handler"=>"modulator-lambda-handler.LambdaHandler.call",
+          "Handler"=>"modulator-lambda-handler.AwsLambdaHandler.call",
           "Environment"=>
            {"Variables"=>
              {"abc"=>"123",
@@ -145,7 +145,7 @@ describe 'CloudFormation template from StackBuilder' do
     )
 
     # verify AWS::Lambda::Permission
-    expect(template.dig('Resources', 'LambdaPermission')).to eq(
+    expect(template.dig('Resources', 'LambdaCalculatorAlgebraSumInvokePermission')).to eq(
       {"Type"=>"AWS::Lambda::Permission",
         "Properties"=>
          {"Action"=>"lambda:InvokeFunction",

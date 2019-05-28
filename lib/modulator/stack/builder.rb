@@ -142,7 +142,7 @@ module StackBuilder
     lambda_resource = generate_lambda_resource(
       description: "Lambda for #{mod[:name]}.#{mod[:method]}",
       function_name: [app_name, name_parts, mod[:method]].flatten.join('-').dasherize,
-      handler: "#{LAMBDA_HANDLER_FILE_NAME}.LambdaHandler.call",
+      handler: "#{LAMBDA_HANDLER_FILE_NAME}.AwsLambdaHandler.call",
       s3_key: LAMBDA_HANDLER_FILE_NAME + '.rb.zip',
       env_vars: env_vars,
       role: Humidifier.fn.get_att(['LambdaRole', 'Arn']),
@@ -182,7 +182,7 @@ module StackBuilder
       fragment = '*' if fragment.start_with?(':')
       matcher << fragment
     end.join('/')
-    stack.add('LambdaPermission', Humidifier::Lambda::Permission.new(
+    stack.add(id + 'InvokePermission' , Humidifier::Lambda::Permission.new(
         action: "lambda:InvokeFunction",
         function_name: Humidifier.fn.get_att([id, 'Arn']),
         principal: "apigateway.amazonaws.com",

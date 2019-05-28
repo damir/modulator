@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    modulator (0.2.5)
+    modulator (0.2.6)
       humidifier
       puma
       rerun
