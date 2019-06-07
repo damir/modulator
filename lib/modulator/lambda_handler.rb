@@ -9,20 +9,6 @@ module AwsLambdaHandler
     # TODO: implement handlers for other event types based on some event key, like AwsS3EventHandler
     AwsApiGatewayEventHandler.call(event: event, context: context)
   end
-
-  # helpers
-  def symbolize_keys(obj)
-    case obj
-    when Hash
-      hash = {}
-      obj.each {|k, v| hash[k.to_sym] = symbolize_keys(v)}
-      hash
-    when Array
-      obj.map {|x| symbolize_keys(x)}
-    else
-      obj
-    end
-  end
 end
 
 module AwsApiGatewayEventHandler
@@ -97,7 +83,7 @@ module AwsApiGatewayEventHandler
       mod.send(mod_method, *path_params.values)
 
     elsif verb == 'POST'
-      payload = AwsLambdaHandler.symbolize_keys(JSON.parse(event['body']))
+      payload = JSON.parse(event['body'], symbolize_names: true)
       method_signature.each do |arg_type, arg_name|         # [[:req, :id], [:key, :pet]]
         payload = {arg_name => payload} if arg_type == :key # scope payload to first named argument
       end
